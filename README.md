@@ -4,14 +4,13 @@ A tool for generating icons from 3D Unity prefabs with support for backgrounds, 
 
 ## Features
 
-- 🔧 **Code API** - Separation of logic and UI
 - 🚀 **Batch Processing** - Render multiple icons simultaneously
 - 🎨 **Full Customization** - Backgrounds, frames, tints, and transformations
-- 📦 **Modular Design** - Use from EditorWindow or directly from code
+- 📦 **Public API** - Use from EditorWindow or directly from code
 
 ## Usage Through UI
 
-1. Open window: **Tools → Render Prefab Icon**
+1. Open window: **UniGame/Tools → Render Prefab Icon**
 2. Select a prefab
 3. Configure parameters:
    - **Resolution** - Icon size (128-1024)
@@ -172,39 +171,6 @@ foreach (var prefab in prefabsToRender)
 - `FrameOffset` - Frame offset (default: Vector2.zero)
 - `TintFrame` - Tint frame (default: false)
 - `FrameTintColor` - Frame tint color (default: white)
-
-## CSS Variables (Relative Units)
-
-All styles use relative units for portability:
-
-- `--accent-color` - Primary UI color
-- `--spacing-xs/sm/md/lg/xl` - Spacing values (in em)
-- `--font-size-*` - Font sizes (in em)
-- `--preview-size` - Preview size (in em)
-- `--button-height` - Button height (in em)
-
-Changing a single `font-size` value automatically scales all other elements.
-
-## Examples
-
-All examples are located in `IconRendererExamples.cs` and available via menu:
-- **Tools → Prefab Icons → Example - Simple Render**
-- **Tools → Prefab Icons → Example - Render to Memory**
-- **Tools → Prefab Icons → Example - Advanced Render**
-- **Tools → Prefab Icons → Example - Batch Render**
-- **Tools → Prefab Icons → Example - Dynamic Settings**
-
-## Requirements
-
-- Unity 2021.2+
-- UI Toolkit support in Editor
-
-## Tips
-
-1. **Performance Optimization** - Use lower resolution for preview
-2. **Background and Frame Sprites** - Create with icon aspect ratio in mind
-3. **Render Layer** - Uses layer 31 for render object isolation
-4. **Batch Processing** - Use the API directly for rendering many icons without UI Toolkit
 
 ## API Methods
 
