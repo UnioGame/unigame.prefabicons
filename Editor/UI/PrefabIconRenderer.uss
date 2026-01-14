@@ -1,0 +1,220 @@
+/* Prefab Icon Renderer Stylesheet */
+/* All measurements use relative units for portability */
+
+:root {
+    /* Color Variables */
+    --accent-color: rgb(66, 133, 244);
+    --accent-color-hover: rgb(51, 103, 214);
+    --background-color: rgb(56, 56, 56);
+    --dark-background: rgb(37, 37, 37);
+    --border-color: rgb(100, 100, 100);
+    --text-color: rgb(230, 230, 230);
+    --success-color: rgb(66, 180, 122);
+    --error-color: rgb(220, 74, 74);
+
+    /* Spacing Variables (in em - relative to font size) */
+    --spacing-xs: 0.25em;
+    --spacing-sm: 0.5em;
+    --spacing-md: 1em;
+    --spacing-lg: 1.5em;
+    --spacing-xl: 2em;
+
+    /* Typography */
+    --font-size-small: 0.85em;
+    --font-size-normal: 1em;
+    --font-size-title: 1.3em;
+
+    /* Dimensions (in em) */
+    --preview-size: 12em;
+    --button-height: 2.5em;
+    --input-height: 1.8em;
+
+    /* Border Radius (in em) */
+    --border-radius: 0.25em;
+
+    /* Transitions */
+    --transition-fast: 0.15s;
+    --transition-normal: 0.25s;
+}
+
+/* Main Scroll View */
+.scroll-view {
+    padding: var(--spacing-lg);
+    background-color: var(--background-color);
+}
+
+/* Title */
+.title {
+    font-size: var(--font-size-title);
+    font-weight: bold;
+    color: var(--text-color);
+    margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing-md);
+    border-bottom-width: 0.05em;
+    border-bottom-color: var(--border-color);
+}
+
+/* Settings Group */
+.settings-group {
+    background-color: var(--dark-background);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    border-width: 0.05em;
+    border-color: var(--border-color);
+}
+
+.group-title {
+    font-size: 0.95em;
+    font-weight: bold;
+    color: var(--accent-color);
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-sm);
+    border-bottom-width: 0.05em;
+    border-bottom-color: var(--accent-color);
+}
+
+/* Advanced Group (Foldout) */
+.advanced-group {
+    background-color: var(--dark-background);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    border-width: 0.05em;
+    border-color: var(--border-color);
+}
+
+.advanced-group > Toggle {
+    margin-bottom: var(--spacing-md);
+}
+
+.layer-title {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: var(--text-color);
+    margin-top: var(--spacing-lg);
+    margin-bottom: var(--spacing-sm);
+    opacity: 0.8;
+}
+
+/* Input Fields */
+ObjectField,
+IntegerField,
+FloatField,
+TextField,
+Vector2Field,
+Vector3Field,
+ColorField,
+Toggle {
+    margin-bottom: var(--spacing-sm);
+    --unity-label-width: 45%;
+}
+
+ObjectField > Label,
+IntegerField > Label,
+FloatField > Label,
+TextField > Label,
+Vector2Field > Label,
+Vector3Field > Label,
+ColorField > Label,
+Toggle > Label {
+    min-width: 45%;
+    color: var(--text-color);
+    font-size: var(--font-size-normal);
+}
+
+ObjectField > VisualElement,
+IntegerField > .unity-base-field__input,
+FloatField > .unity-base-field__input,
+TextField > .unity-base-field__input,
+Vector2Field > .unity-composite-field__input,
+Vector3Field > .unity-composite-field__input,
+ColorField > .unity-base-field__input {
+    height: var(--input-height);
+}
+
+/* Button Container */
+.button-container {
+    padding: var(--spacing-lg) 0;
+    flex-direction: row;
+    justify-content: space-around;
+}
+
+/* Render Button */
+.render-button {
+    padding: var(--spacing-md) var(--spacing-xl);
+    background-color: var(--accent-color);
+    color: white;
+    border-radius: var(--border-radius);
+    font-size: 1em;
+    font-weight: bold;
+    border-width: 0;
+    cursor: link;
+    transition-property: background-color;
+    transition-duration: var(--transition-normal);
+    min-height: var(--button-height);
+    min-width: 50%;
+}
+
+.render-button:hover {
+    background-color: var(--accent-color-hover);
+    transition-duration: var(--transition-fast);
+}
+
+.render-button:active {
+    background-color: var(--accent-color);
+    transition-duration: 0s;
+}
+
+/* Preview Image */
+.preview-image {
+    width: 100%;
+    height: var(--preview-size);
+    background-color: var(--dark-background);
+    border-radius: var(--border-radius);
+    border-width: 0.05em;
+    border-color: var(--border-color);
+    margin-top: var(--spacing-lg);
+    margin-bottom: var(--spacing-md);
+}
+
+/* Status Label */
+.status-label {
+    font-size: var(--font-size-small);
+    color: var(--text-color);
+    padding: var(--spacing-sm);
+    background-color: var(--dark-background);
+    border-radius: var(--border-radius);
+    text-align: center;
+    opacity: 0.8;
+    margin-top: var(--spacing-md);
+}
+
+/* Responsive adjustments */
+@media (max-width: 500px) {
+    :root {
+        --spacing-md: 0.75em;
+        --spacing-lg: 1.25em;
+        --preview-size: 10em;
+    }
+
+    ObjectField,
+    IntegerField,
+    FloatField,
+    TextField,
+    Vector2Field,
+    Vector3Field,
+    ColorField,
+    Toggle {
+        --unity-label-width: 40%;
+    }
+
+    .button-container {
+        flex-direction: column;
+    }
+
+    .render-button {
+        min-width: 100%;
+        margin-bottom: var(--spacing-sm);
+    }
+}
