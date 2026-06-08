@@ -35,6 +35,8 @@ namespace PrefabIconRenderer
 
         public string fileName = "NewIcon";
         public string folderPath = "Assets/GeneratedSprites";
+        public bool autoNaming = true;
+        public PrefabIconNameCollisionPolicy nameCollisionPolicy = PrefabIconNameCollisionPolicy.AppendNumber;
 
         /// <summary>
         /// Создает копию настроек
@@ -62,8 +64,16 @@ namespace PrefabIconRenderer
                 tintFrame = this.tintFrame,
                 frameTintColor = this.frameTintColor,
                 fileName = this.fileName,
-                folderPath = this.folderPath
+                folderPath = this.folderPath,
+                autoNaming = this.autoNaming,
+                nameCollisionPolicy = this.nameCollisionPolicy
             };
         }
+    }
+
+    public enum PrefabIconNameCollisionPolicy
+    {
+        AppendNumber = 0,
+        Overwrite = 1
     }
 }

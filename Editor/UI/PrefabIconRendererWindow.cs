@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEditor;
 using UnityEngine.UIElements;
@@ -10,17 +13,33 @@ namespace PrefabIconRenderer
         private const string WindowTitle = "Render Prefab Icon";
         private const string DefaultFileNameKey = "PrefabIconRenderer_DefaultFileName";
         private const string DefaultFolderPathKey = "PrefabIconRenderer_DefaultFolderPath";
+        private const string SourceFoldersKey = "PrefabIconRenderer_SourceFolders";
+        private const string AutoNamingKey = "PrefabIconRenderer_AutoNaming";
+        private const string CollisionPolicyKey = "PrefabIconRenderer_CollisionPolicy";
+        private const char SourceFolderSeparator = '|';
+        private const string NoPrefabsFoundLabel = "No prefabs found";
 
         private IconRendererEngine engine;
         private PrefabIconSettings settings;
+
+        private readonly List<string> sourceFolders = new();
+        private readonly List<PrefabEntry> foundPrefabs = new();
 
         private ObjectField prefabField;
         private IntegerField resolutionField;
         private TextField fileNameField;
         private TextField defaultFileNameField;
         private TextField folderPathField;
+        private Toggle autoNamingToggle;
+        private EnumField nameCollisionPolicyField;
         private Toggle transparentBackgroundToggle;
         private ColorField backgroundColorField;
+
+        private ObjectField sourceFolderAddField;
+        private VisualElement sourceFoldersContainer;
+        private VisualElement prefabPopupContainer;
+        private PopupField<string> prefabPopupField;
+        private Label prefabSourcesStatusLabel;
 
         private Vector3Field rotationField;
         private FloatField cameraZoomField;
@@ -53,17 +72,16 @@ namespace PrefabIconRenderer
         {
             settings = new PrefabIconSettings();
             engine = new IconRendererEngine(settings);
-            
-            // Load default values from EditorPrefs
+
             LoadDefaultSettings();
-            
+
             BuildUI();
-            EditorApplication.update += RepaintPreview;
+            RefreshPrefabs();
+            RepaintPreview();
         }
 
         private void OnDisable()
         {
-            EditorApplication.update -= RepaintPreview;
         }
 
         private void BuildUI()
@@ -76,12 +94,13 @@ namespace PrefabIconRenderer
             var scrollView = new ScrollView();
             scrollView.AddToClassList("scroll-view");
 
-            // Title
             var titleLabel = new Label(WindowTitle);
             titleLabel.AddToClassList("title");
             scrollView.Add(titleLabel);
 
-            // Main Settings Group
+            var sourcesGroup = CreatePrefabSourcesGroup();
+            scrollView.Add(sourcesGroup);
+
             var mainGroup = CreateSettingsGroup("Main Settings");
             scrollView.Add(mainGroup);
 
@@ -90,6 +109,7 @@ namespace PrefabIconRenderer
             prefabField.RegisterValueChangedCallback(evt =>
             {
                 settings.prefab = evt.newValue as GameObject;
+                SelectPrefabInPopup(settings.prefab);
                 RepaintPreview();
             });
             mainGroup.Add(prefabField);
@@ -99,16 +119,35 @@ namespace PrefabIconRenderer
             resolutionField.RegisterValueChangedCallback(evt =>
             {
                 settings.resolution = Mathf.Clamp(evt.newValue, 128, 1024);
-                resolutionField.value = settings.resolution;
+                resolutionField.SetValueWithoutNotify(settings.resolution);
+                RepaintPreview();
             });
             mainGroup.Add(resolutionField);
 
             fileNameField = new TextField("Icon Filename");
             fileNameField.value = settings.fileName;
+            fileNameField.SetEnabled(!settings.autoNaming);
             fileNameField.RegisterValueChangedCallback(evt => settings.fileName = evt.newValue);
             mainGroup.Add(fileNameField);
 
-            // Default Settings Group
+            autoNamingToggle = new Toggle("Auto Naming");
+            autoNamingToggle.value = settings.autoNaming;
+            autoNamingToggle.RegisterValueChangedCallback(evt =>
+            {
+                settings.autoNaming = evt.newValue;
+                EditorPrefs.SetBool(AutoNamingKey, settings.autoNaming);
+                fileNameField.SetEnabled(!settings.autoNaming);
+            });
+            mainGroup.Add(autoNamingToggle);
+
+            nameCollisionPolicyField = new EnumField("Name Collision Policy", settings.nameCollisionPolicy);
+            nameCollisionPolicyField.RegisterValueChangedCallback(evt =>
+            {
+                settings.nameCollisionPolicy = (PrefabIconNameCollisionPolicy)Convert.ToInt32(evt.newValue);
+                EditorPrefs.SetInt(CollisionPolicyKey, (int)settings.nameCollisionPolicy);
+            });
+            mainGroup.Add(nameCollisionPolicyField);
+
             var defaultGroup = CreateSettingsGroup("Default Settings");
             scrollView.Add(defaultGroup);
 
@@ -116,6 +155,8 @@ namespace PrefabIconRenderer
             defaultFileNameField.value = EditorPrefs.GetString(DefaultFileNameKey, "NewIcon");
             defaultFileNameField.RegisterValueChangedCallback(evt =>
             {
+                settings.fileName = evt.newValue;
+                fileNameField.SetValueWithoutNotify(settings.fileName);
                 EditorPrefs.SetString(DefaultFileNameKey, evt.newValue);
             });
             defaultGroup.Add(defaultFileNameField);
@@ -124,15 +165,16 @@ namespace PrefabIconRenderer
             folderPathField.value = EditorPrefs.GetString(DefaultFolderPathKey, "Assets/GeneratedSprites");
             folderPathField.RegisterValueChangedCallback(evt =>
             {
-                EditorPrefs.SetString(DefaultFolderPathKey, evt.newValue);
+                settings.folderPath = NormalizePath(evt.newValue);
+                folderPathField.SetValueWithoutNotify(settings.folderPath);
+                EditorPrefs.SetString(DefaultFolderPathKey, settings.folderPath);
             });
             defaultGroup.Add(folderPathField);
 
-            var browseButton = new Button(() => BrowseFolder()) { text = "Browse Folder..." };
+            var browseButton = new Button(BrowseFolder) { text = "Browse Folder..." };
             browseButton.AddToClassList("browse-button");
             defaultGroup.Add(browseButton);
 
-            // Background Settings Group
             var backgroundGroup = CreateSettingsGroup("Background");
             scrollView.Add(backgroundGroup);
 
@@ -156,7 +198,6 @@ namespace PrefabIconRenderer
             });
             backgroundGroup.Add(backgroundColorField);
 
-            // Transform Settings Group
             var transformGroup = CreateSettingsGroup("Transform");
             scrollView.Add(transformGroup);
 
@@ -174,7 +215,7 @@ namespace PrefabIconRenderer
             cameraZoomField.RegisterValueChangedCallback(evt =>
             {
                 settings.cameraZoom = Mathf.Clamp(evt.newValue, 0.1f, 10f);
-                cameraZoomField.value = settings.cameraZoom;
+                cameraZoomField.SetValueWithoutNotify(settings.cameraZoom);
                 RepaintPreview();
             });
             transformGroup.Add(cameraZoomField);
@@ -184,7 +225,7 @@ namespace PrefabIconRenderer
             prefabZoomField.RegisterValueChangedCallback(evt =>
             {
                 settings.prefabZoom = Mathf.Clamp(evt.newValue, 0.1f, 20f);
-                prefabZoomField.value = settings.prefabZoom;
+                prefabZoomField.SetValueWithoutNotify(settings.prefabZoom);
                 RepaintPreview();
             });
             transformGroup.Add(prefabZoomField);
@@ -198,10 +239,8 @@ namespace PrefabIconRenderer
             });
             transformGroup.Add(prefabOffsetField);
 
-            // Advanced Layer Settings Group
-            var advancedGroup = CreateAdvancedGroup(scrollView);
+            CreateAdvancedGroup(scrollView);
 
-            // Render Buttons
             var buttonContainer = new VisualElement();
             buttonContainer.AddToClassList("button-container");
 
@@ -209,9 +248,12 @@ namespace PrefabIconRenderer
             renderButton.AddToClassList("render-button");
             buttonContainer.Add(renderButton);
 
+            var batchRenderButton = new Button(OnBatchRenderClicked) { text = "Render All Found Prefabs" };
+            batchRenderButton.AddToClassList("render-button");
+            buttonContainer.Add(batchRenderButton);
+
             scrollView.Add(buttonContainer);
 
-            // Preview and Status
             previewImage = new Image();
             previewImage.AddToClassList("preview-image");
             scrollView.Add(previewImage);
@@ -221,6 +263,41 @@ namespace PrefabIconRenderer
             scrollView.Add(statusLabel);
 
             rootVisualElement.Add(scrollView);
+        }
+
+        private VisualElement CreatePrefabSourcesGroup()
+        {
+            var group = CreateSettingsGroup("Prefab Sources");
+
+            sourceFoldersContainer = new VisualElement();
+            group.Add(sourceFoldersContainer);
+
+            var addRow = new VisualElement();
+            addRow.style.flexDirection = FlexDirection.Row;
+
+            sourceFolderAddField = new ObjectField("Folder");
+            sourceFolderAddField.objectType = typeof(DefaultAsset);
+            sourceFolderAddField.style.flexGrow = 1;
+            addRow.Add(sourceFolderAddField);
+
+            var addButton = new Button(AddSelectedSourceFolder) { text = "Add Folder" };
+            addRow.Add(addButton);
+            group.Add(addRow);
+
+            prefabPopupContainer = new VisualElement();
+            group.Add(prefabPopupContainer);
+
+            var refreshButton = new Button(RefreshPrefabs) { text = "Refresh Prefabs" };
+            group.Add(refreshButton);
+
+            prefabSourcesStatusLabel = new Label("No source folders selected");
+            prefabSourcesStatusLabel.AddToClassList("status-label");
+            group.Add(prefabSourcesStatusLabel);
+
+            RefreshSourceFoldersUI();
+            RebuildPrefabPopup();
+
+            return group;
         }
 
         private VisualElement CreateSettingsGroup(string title)
@@ -241,7 +318,6 @@ namespace PrefabIconRenderer
             advancedGroup.AddToClassList("advanced-group");
             parentScroll.Add(advancedGroup);
 
-            // Background Layer Settings
             var bgLabel = new Label("Background");
             bgLabel.AddToClassList("layer-title");
             advancedGroup.Add(bgLabel);
@@ -260,7 +336,7 @@ namespace PrefabIconRenderer
             backgroundZoomField.RegisterValueChangedCallback(evt =>
             {
                 settings.backgroundZoom = Mathf.Clamp(evt.newValue, 0.1f, 100f);
-                backgroundZoomField.value = settings.backgroundZoom;
+                backgroundZoomField.SetValueWithoutNotify(settings.backgroundZoom);
                 RepaintPreview();
             });
             advancedGroup.Add(backgroundZoomField);
@@ -294,10 +370,8 @@ namespace PrefabIconRenderer
             });
             advancedGroup.Add(backgroundTintColorField);
 
-            // Separator
             advancedGroup.Add(new VisualElement { style = { marginTop = 10, marginBottom = 10 } });
 
-            // Frame Layer Settings
             var frameLabel = new Label("Frame");
             frameLabel.AddToClassList("layer-title");
             advancedGroup.Add(frameLabel);
@@ -316,7 +390,7 @@ namespace PrefabIconRenderer
             frameZoomField.RegisterValueChangedCallback(evt =>
             {
                 settings.frameZoom = Mathf.Clamp(evt.newValue, 0.1f, 20f);
-                frameZoomField.value = settings.frameZoom;
+                frameZoomField.SetValueWithoutNotify(settings.frameZoom);
                 RepaintPreview();
             });
             advancedGroup.Add(frameZoomField);
@@ -353,8 +427,174 @@ namespace PrefabIconRenderer
             return advancedGroup;
         }
 
+        private void AddSelectedSourceFolder()
+        {
+            var folder = sourceFolderAddField.value;
+            if (!TryGetValidFolderPath(folder, out var path))
+            {
+                EditorUtility.DisplayDialog("Invalid Folder", "Please select a folder asset under Assets or Packages.", "OK");
+                return;
+            }
+
+            if (!sourceFolders.Contains(path))
+            {
+                sourceFolders.Add(path);
+                SaveSourceFolders();
+                RefreshSourceFoldersUI();
+                RefreshPrefabs();
+            }
+
+            sourceFolderAddField.value = null;
+        }
+
+        private void RefreshSourceFoldersUI()
+        {
+            if (sourceFoldersContainer == null)
+                return;
+
+            sourceFoldersContainer.Clear();
+
+            for (var i = 0; i < sourceFolders.Count; i++)
+            {
+                var index = i;
+                var row = new VisualElement();
+                row.style.flexDirection = FlexDirection.Row;
+
+                var folderField = new ObjectField("Source Folder");
+                folderField.objectType = typeof(DefaultAsset);
+                folderField.value = AssetDatabase.LoadAssetAtPath<DefaultAsset>(sourceFolders[index]);
+                folderField.style.flexGrow = 1;
+                folderField.RegisterValueChangedCallback(evt =>
+                {
+                    if (!TryGetValidFolderPath(evt.newValue, out var newPath))
+                    {
+                        EditorUtility.DisplayDialog("Invalid Folder", "Please select a folder asset under Assets or Packages.", "OK");
+                        folderField.SetValueWithoutNotify(AssetDatabase.LoadAssetAtPath<DefaultAsset>(sourceFolders[index]));
+                        return;
+                    }
+
+                    if (sourceFolders.Contains(newPath) && sourceFolders[index] != newPath)
+                    {
+                        folderField.SetValueWithoutNotify(AssetDatabase.LoadAssetAtPath<DefaultAsset>(sourceFolders[index]));
+                        return;
+                    }
+
+                    sourceFolders[index] = newPath;
+                    SaveSourceFolders();
+                    RefreshPrefabs();
+                });
+                row.Add(folderField);
+
+                var removeButton = new Button(() =>
+                {
+                    sourceFolders.RemoveAt(index);
+                    SaveSourceFolders();
+                    RefreshSourceFoldersUI();
+                    RefreshPrefabs();
+                })
+                {
+                    text = "Remove"
+                };
+                row.Add(removeButton);
+
+                sourceFoldersContainer.Add(row);
+            }
+        }
+
+        private void RefreshPrefabs()
+        {
+            foundPrefabs.Clear();
+
+            var validFolders = sourceFolders
+                .Where(path => AssetDatabase.IsValidFolder(path))
+                .ToArray();
+
+            if (validFolders.Length > 0)
+            {
+                var guids = AssetDatabase.FindAssets("t:Prefab", validFolders);
+                foreach (var guid in guids)
+                {
+                    var path = AssetDatabase.GUIDToAssetPath(guid);
+                    var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                    if (prefab == null)
+                        continue;
+
+                    foundPrefabs.Add(new PrefabEntry(prefab, path));
+                }
+            }
+
+            foundPrefabs.Sort((left, right) =>
+            {
+                var nameCompare = string.Compare(left.Prefab.name, right.Prefab.name, StringComparison.OrdinalIgnoreCase);
+                return nameCompare != 0
+                    ? nameCompare
+                    : string.Compare(left.Path, right.Path, StringComparison.OrdinalIgnoreCase);
+            });
+
+            RebuildPrefabPopup();
+            SelectPrefabInPopup(settings.prefab);
+
+            if (settings.prefab == null && foundPrefabs.Count > 0)
+                SetSelectedPrefab(foundPrefabs[0].Prefab);
+
+            if (prefabSourcesStatusLabel != null)
+                prefabSourcesStatusLabel.text = $"{sourceFolders.Count} folders, {foundPrefabs.Count} prefabs found";
+        }
+
+        private void RebuildPrefabPopup()
+        {
+            if (prefabPopupContainer == null)
+                return;
+
+            prefabPopupContainer.Clear();
+
+            var choices = foundPrefabs.Count == 0
+                ? new List<string> { NoPrefabsFoundLabel }
+                : foundPrefabs.Select(x => x.DisplayName).ToList();
+
+            prefabPopupField = new PopupField<string>("Prefab From Sources", choices, 0);
+            prefabPopupField.SetEnabled(foundPrefabs.Count > 0);
+            prefabPopupField.RegisterValueChangedCallback(evt =>
+            {
+                var index = choices.IndexOf(evt.newValue);
+                if (index < 0 || index >= foundPrefabs.Count)
+                    return;
+
+                SetSelectedPrefab(foundPrefabs[index].Prefab);
+            });
+
+            prefabPopupContainer.Add(prefabPopupField);
+        }
+
+        private void SelectPrefabInPopup(GameObject prefab)
+        {
+            if (prefabPopupField == null || prefab == null || foundPrefabs.Count == 0)
+                return;
+
+            var path = AssetDatabase.GetAssetPath(prefab);
+            var index = foundPrefabs.FindIndex(x => x.Path == path);
+            if (index < 0)
+                return;
+
+            prefabPopupField.SetValueWithoutNotify(foundPrefabs[index].DisplayName);
+        }
+
+        private void SetSelectedPrefab(GameObject prefab)
+        {
+            settings.prefab = prefab;
+
+            if (prefabField != null)
+                prefabField.SetValueWithoutNotify(settings.prefab);
+
+            SelectPrefabInPopup(settings.prefab);
+            RepaintPreview();
+        }
+
         private void RepaintPreview()
         {
+            if (previewImage == null || statusLabel == null)
+                return;
+
             if (settings.prefab == null)
             {
                 previewImage.image = null;
@@ -383,9 +623,16 @@ namespace PrefabIconRenderer
                 return;
             }
 
+            if (!ValidateSaveFolder())
+                return;
+
             statusLabel.text = "Rendering...";
 
-            var result = engine.RenderAndSave();
+            var fileName = settings.autoNaming
+                ? IconRendererEngine.CreateAutoFileName(settings.prefab, settings.resolution)
+                : settings.fileName;
+
+            var result = engine.RenderAndSave(fileName, settings.nameCollisionPolicy);
             if (result.Success)
             {
                 statusLabel.text = $"Saved: {result.SavedPath}";
@@ -400,16 +647,102 @@ namespace PrefabIconRenderer
             }
         }
 
+        private void OnBatchRenderClicked()
+        {
+            if (sourceFolders.Count == 0)
+            {
+                EditorUtility.DisplayDialog("Error", "Please add at least one source folder.", "OK");
+                return;
+            }
+
+            if (foundPrefabs.Count == 0)
+            {
+                EditorUtility.DisplayDialog("Error", "No prefabs found in selected source folders.", "OK");
+                return;
+            }
+
+            if (!settings.autoNaming)
+            {
+                EditorUtility.DisplayDialog("Error", "Batch render requires Auto Naming.", "OK");
+                return;
+            }
+
+            if (!ValidateSaveFolder())
+                return;
+
+            var originalPrefab = settings.prefab;
+            var successCount = 0;
+            var failCount = 0;
+            var assetEditingStarted = false;
+            var reservedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            try
+            {
+                AssetDatabase.StartAssetEditing();
+                assetEditingStarted = true;
+
+                for (var i = 0; i < foundPrefabs.Count; i++)
+                {
+                    var entry = foundPrefabs[i];
+                    settings.prefab = entry.Prefab;
+
+                    EditorUtility.DisplayProgressBar(
+                        "Rendering Prefab Icons",
+                        $"Rendering {entry.Prefab.name}",
+                        i / (float)foundPrefabs.Count);
+
+                    var fileName = IconRendererEngine.CreateAutoFileName(entry.Prefab, settings.resolution);
+                    var result = engine.RenderAndSave(fileName, settings.nameCollisionPolicy, reservedPaths);
+                    if (result.Success)
+                    {
+                        successCount++;
+                        Debug.Log($"[PrefabIconRenderer] Icon saved: {result.SavedPath}");
+                    }
+                    else
+                    {
+                        failCount++;
+                        Debug.LogError($"[PrefabIconRenderer] Render error for {entry.Path}: {result.ErrorMessage}");
+                    }
+                }
+            }
+            finally
+            {
+                settings.prefab = originalPrefab;
+                prefabField.SetValueWithoutNotify(settings.prefab);
+                SelectPrefabInPopup(settings.prefab);
+                EditorUtility.ClearProgressBar();
+                if (assetEditingStarted)
+                    AssetDatabase.StopAssetEditing();
+                AssetDatabase.Refresh();
+            }
+
+            statusLabel.text = $"Batch complete. Success: {successCount}, Failed: {failCount}";
+            EditorUtility.DisplayDialog(
+                "Batch Render Complete",
+                $"Success: {successCount}\nFailed: {failCount}",
+                "OK");
+        }
+
+        private bool ValidateSaveFolder()
+        {
+            settings.folderPath = NormalizePath(settings.folderPath);
+            if (string.IsNullOrWhiteSpace(settings.folderPath) || !IsAllowedAssetPath(settings.folderPath))
+            {
+                EditorUtility.DisplayDialog("Invalid Save Folder", "Save folder must be under Assets or Packages.", "OK");
+                return false;
+            }
+
+            return true;
+        }
+
         private StyleSheet LoadStyleSheet()
         {
-            // Find stylesheet relative to this script's location
             var guids = AssetDatabase.FindAssets("PrefabIconRenderer t:StyleSheet");
-            
+
             foreach (var guid in guids)
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
-                
-                // Make sure it's the right file (not a copy in different location)
+
                 if (path.EndsWith("/PrefabIconRenderer.uss") && path.Contains("unigame.prefabicons"))
                 {
                     var styleSheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(path);
@@ -424,12 +757,28 @@ namespace PrefabIconRenderer
 
         private void LoadDefaultSettings()
         {
-            // Load from EditorPrefs
             string defaultFileName = EditorPrefs.GetString(DefaultFileNameKey, "NewIcon");
             string defaultFolder = EditorPrefs.GetString(DefaultFolderPathKey, "Assets/GeneratedSprites");
 
             settings.fileName = defaultFileName;
-            settings.folderPath = defaultFolder;
+            settings.folderPath = NormalizePath(defaultFolder);
+            settings.autoNaming = EditorPrefs.GetBool(AutoNamingKey, true);
+            settings.nameCollisionPolicy = (PrefabIconNameCollisionPolicy)EditorPrefs.GetInt(
+                CollisionPolicyKey,
+                (int)PrefabIconNameCollisionPolicy.AppendNumber);
+            if (!Enum.IsDefined(typeof(PrefabIconNameCollisionPolicy), settings.nameCollisionPolicy))
+                settings.nameCollisionPolicy = PrefabIconNameCollisionPolicy.AppendNumber;
+
+            sourceFolders.Clear();
+            var serializedFolders = EditorPrefs.GetString(SourceFoldersKey, string.Empty);
+            if (!string.IsNullOrWhiteSpace(serializedFolders))
+            {
+                sourceFolders.AddRange(serializedFolders
+                    .Split(SourceFolderSeparator)
+                    .Select(NormalizePath)
+                    .Where(path => !string.IsNullOrWhiteSpace(path) && IsAllowedAssetPath(path))
+                    .Distinct());
+            }
         }
 
         private void BrowseFolder()
@@ -440,18 +789,64 @@ namespace PrefabIconRenderer
                 ""
             );
 
-            if (!string.IsNullOrEmpty(selectedPath))
-            {
-                // Convert absolute path to relative Assets path
-                if (selectedPath.StartsWith(Application.dataPath))
-                {
-                    selectedPath = "Assets" + selectedPath.Substring(Application.dataPath.Length);
-                }
+            if (string.IsNullOrEmpty(selectedPath))
+                return;
 
-                folderPathField.value = selectedPath;
-                EditorPrefs.SetString(DefaultFolderPathKey, selectedPath);
-                settings.folderPath = selectedPath;
+            selectedPath = NormalizeSelectedFolderPath(selectedPath);
+            folderPathField.value = selectedPath;
+            EditorPrefs.SetString(DefaultFolderPathKey, selectedPath);
+            settings.folderPath = selectedPath;
+        }
+
+        private void SaveSourceFolders()
+        {
+            EditorPrefs.SetString(SourceFoldersKey, string.Join(SourceFolderSeparator.ToString(), sourceFolders));
+        }
+
+        private static bool TryGetValidFolderPath(UnityEngine.Object folder, out string path)
+        {
+            path = folder == null ? string.Empty : NormalizePath(AssetDatabase.GetAssetPath(folder));
+            return !string.IsNullOrWhiteSpace(path) && IsAllowedAssetPath(path) && AssetDatabase.IsValidFolder(path);
+        }
+
+        private static bool IsAllowedAssetPath(string path)
+        {
+            path = NormalizePath(path);
+            return path.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(path, "Assets", StringComparison.OrdinalIgnoreCase)
+                   || path.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(path, "Packages", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeSelectedFolderPath(string selectedPath)
+        {
+            selectedPath = NormalizePath(selectedPath);
+            var dataPath = NormalizePath(Application.dataPath);
+            if (selectedPath.StartsWith(dataPath, StringComparison.OrdinalIgnoreCase))
+                return "Assets" + selectedPath.Substring(dataPath.Length);
+
+            return selectedPath;
+        }
+
+        private static string NormalizePath(string path)
+        {
+            return string.IsNullOrWhiteSpace(path)
+                ? string.Empty
+                : path.Replace('\\', '/').TrimEnd('/');
+        }
+
+        private sealed class PrefabEntry
+        {
+            public PrefabEntry(GameObject prefab, string path)
+            {
+                Prefab = prefab;
+                Path = path;
+                DisplayName = $"{prefab.name} ({path})";
             }
+
+            public GameObject Prefab { get; }
+            public string Path { get; }
+            public string DisplayName { get; }
         }
     }
 }

@@ -153,60 +153,56 @@ namespace PrefabIconRenderer
         /// </summary>
         public PrefabIconRenderResult RenderAndSave()
         {
+            return RenderAndSave(settings.fileName, settings.nameCollisionPolicy);
+        }
+
+        public PrefabIconRenderResult RenderAndSave(
+            string fileName,
+            PrefabIconNameCollisionPolicy collisionPolicy,
+            ISet<string> reservedPaths = null)
+        {
             if (settings.prefab == null)
                 return PrefabIconRenderResult.CreateError("Prefab is not set");
 
+            GameObject camObj = null;
+            GameObject renderGroup = null;
+            Dictionary<GameObject, int> originalLayers = null;
+            RenderTexture rt = null;
+            RenderTexture currentRT = RenderTexture.active;
+            Texture2D tex = null;
+
             try
             {
-                GameObject camObj = new GameObject("IconCam") { hideFlags = HideFlags.HideAndDontSave };
+                camObj = new GameObject("IconCam") { hideFlags = HideFlags.HideAndDontSave };
                 Camera cam = camObj.AddComponent<Camera>();
 
-                GameObject renderGroup = CreateRenderGroup(cam, out Dictionary<GameObject, int> originalLayers);
+                renderGroup = CreateRenderGroup(cam, out originalLayers);
 
-                RenderTexture rt = new RenderTexture(settings.resolution, settings.resolution, 24, RenderTextureFormat.ARGB32);
+                rt = new RenderTexture(settings.resolution, settings.resolution, 24, RenderTextureFormat.ARGB32);
                 rt.antiAliasing = 8;
                 rt.Create();
 
                 ConfigureCamera(cam, rt);
 
-                RenderTexture currentRT = RenderTexture.active;
                 RenderTexture.active = rt;
                 cam.Render();
 
-                Texture2D tex = new Texture2D(settings.resolution, settings.resolution, TextureFormat.ARGB32, false);
+                tex = new Texture2D(settings.resolution, settings.resolution, TextureFormat.ARGB32, false);
                 tex.ReadPixels(new Rect(0, 0, settings.resolution, settings.resolution), 0, 0);
                 tex.Apply();
 
-                // Create folder if it doesn't exist
-                if (!Directory.Exists(settings.folderPath))
-                    Directory.CreateDirectory(settings.folderPath);
+                string filePath = ResolveIconPath(fileName, collisionPolicy, reservedPaths);
+                string directory = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                    Directory.CreateDirectory(directory);
 
-                string safeFileName = string.IsNullOrWhiteSpace(settings.fileName) ? settings.prefab.name + "_Icon" : settings.fileName;
-                string filePath = $"{settings.folderPath}/{safeFileName}.png";
                 File.WriteAllBytes(filePath, tex.EncodeToPNG());
 
                 AssetDatabase.Refresh();
 
-                // Configure texture import settings
-                TextureImporter importer = AssetImporter.GetAtPath(filePath) as TextureImporter;
-                if (importer != null)
-                {
-                    importer.textureType = TextureImporterType.Sprite;
-                    importer.spriteImportMode = SpriteImportMode.Single;
-                    importer.alphaIsTransparency = true;
-                    importer.mipmapEnabled = false;
-                    importer.filterMode = FilterMode.Bilinear;
-                    importer.textureCompression = TextureImporterCompression.Uncompressed;
-                    importer.spritePixelsPerUnit = 100;
-                    EditorUtility.SetDirty(importer);
-                    importer.SaveAndReimport();
-                }
+                ConfigureTextureImporter(filePath);
 
                 RenderTexture.active = currentRT;
-                cam.targetTexture = null;
-                rt.Release();
-                UnityEngine.Object.DestroyImmediate(tex);
-                CleanupRender(camObj, renderGroup, originalLayers, null);
 
                 return PrefabIconRenderResult.CreateSaved(filePath);
             }
@@ -215,6 +211,89 @@ namespace PrefabIconRenderer
                 Debug.LogError($"[IconRendererEngine] Render and save error: {ex.Message}\n{ex.StackTrace}");
                 return PrefabIconRenderResult.CreateError(ex.Message);
             }
+            finally
+            {
+                RenderTexture.active = currentRT;
+
+                if (tex != null)
+                    UnityEngine.Object.DestroyImmediate(tex);
+
+                if (camObj != null)
+                {
+                    var cam = camObj.GetComponent<Camera>();
+                    if (cam != null)
+                        cam.targetTexture = null;
+                }
+
+                CleanupRender(camObj, renderGroup, originalLayers, rt);
+            }
+        }
+
+        public static string CreateAutoFileName(GameObject prefab, int resolution)
+        {
+            var prefabName = prefab == null ? "PrefabIcon" : prefab.name;
+            return $"{prefabName}_{resolution}";
+        }
+
+        public string ResolveIconPath(
+            string fileName,
+            PrefabIconNameCollisionPolicy collisionPolicy,
+            ISet<string> reservedPaths = null)
+        {
+            if (string.IsNullOrWhiteSpace(settings.folderPath))
+                throw new InvalidOperationException("Save folder is not set");
+
+            var safeFileName = string.IsNullOrWhiteSpace(fileName)
+                ? settings.prefab.name + "_Icon"
+                : fileName;
+
+            safeFileName = SanitizeFileName(safeFileName);
+            var folderPath = NormalizeAssetPath(settings.folderPath);
+            var filePath = $"{folderPath}/{safeFileName}.png";
+
+            if (collisionPolicy == PrefabIconNameCollisionPolicy.Overwrite)
+                return filePath;
+
+            var index = 1;
+            var uniquePath = filePath;
+            while (File.Exists(uniquePath) || (reservedPaths != null && reservedPaths.Contains(uniquePath)))
+            {
+                uniquePath = $"{folderPath}/{safeFileName}_{index}.png";
+                index++;
+            }
+
+            reservedPaths?.Add(uniquePath);
+            return uniquePath;
+        }
+
+        private static string NormalizeAssetPath(string path)
+        {
+            return path.Replace('\\', '/').TrimEnd('/');
+        }
+
+        private static string SanitizeFileName(string fileName)
+        {
+            foreach (var invalidChar in Path.GetInvalidFileNameChars())
+                fileName = fileName.Replace(invalidChar, '_');
+
+            return fileName;
+        }
+
+        private static void ConfigureTextureImporter(string filePath)
+        {
+            TextureImporter importer = AssetImporter.GetAtPath(filePath) as TextureImporter;
+            if (importer == null)
+                return;
+
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spriteImportMode = SpriteImportMode.Single;
+            importer.alphaIsTransparency = true;
+            importer.mipmapEnabled = false;
+            importer.filterMode = FilterMode.Bilinear;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.spritePixelsPerUnit = 100;
+            EditorUtility.SetDirty(importer);
+            importer.SaveAndReimport();
         }
 
         private GameObject CreateRenderGroup(Camera cam, out Dictionary<GameObject, int> originalLayers)
@@ -315,9 +394,14 @@ namespace PrefabIconRenderer
             if (rt != null)
                 rt.Release();
 
-            UnityEngine.Object.DestroyImmediate(camObj);
-            RestoreLayers(originalLayers);
-            Object.DestroyImmediate(renderGroup);
+            if (camObj != null)
+                UnityEngine.Object.DestroyImmediate(camObj);
+
+            if (originalLayers != null)
+                RestoreLayers(originalLayers);
+
+            if (renderGroup != null)
+                Object.DestroyImmediate(renderGroup);
         }
 
         private void RestoreLayers(Dictionary<GameObject, int> layerData)
