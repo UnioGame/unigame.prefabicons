@@ -38,25 +38,51 @@
 }
 
 /* Main Layout */
-.main-layout {
-    flex-direction: row;
+.window-root {
     flex-grow: 1;
     background-color: var(--background-color);
 }
 
-.inspector-scroll {
+.main-layout {
+    flex-direction: row;
     flex-grow: 1;
-    min-width: 24em;
+    height: 100%;
+    background-color: var(--background-color);
     padding: var(--spacing-md);
 }
 
-.preview-panel {
-    width: 18em;
-    min-width: 16em;
+.inspector-scroll {
+    flex-grow: 0;
+    flex-shrink: 1;
+    width: 32em;
+    min-width: 24em;
     padding: var(--spacing-md);
-    background-color: var(--dark-background);
-    border-left-width: 0.05em;
-    border-left-color: var(--border-color);
+    background-color: rgb(47, 47, 47);
+    border-radius: var(--border-radius);
+    border-width: 0.05em;
+    border-color: var(--border-color);
+    margin-right: var(--spacing-md);
+}
+
+.preview-panel {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 18em;
+    padding: var(--spacing-md);
+    background-color: rgb(31, 31, 31);
+    border-radius: var(--border-radius);
+    border-width: 0.05em;
+    border-color: var(--border-color);
+}
+
+.panel-title {
+    font-size: 1em;
+    font-weight: bold;
+    color: var(--accent-color);
+    margin-bottom: var(--spacing-sm);
+    padding-bottom: var(--spacing-xs);
+    border-bottom-width: 0.05em;
+    border-bottom-color: var(--accent-color);
 }
 
 /* Title */
@@ -202,7 +228,8 @@ ColorField > .unity-base-field__input {
 /* Preview Image */
 .preview-image {
     width: 100%;
-    height: 16em;
+    height: 22em;
+    max-height: 70%;
     background-color: var(--background-color);
     border-radius: var(--border-radius);
     border-width: 0.05em;
@@ -243,18 +270,6 @@ ColorField > .unity-base-field__input {
 
     .button-container {
         flex-direction: column;
-    }
-
-    .main-layout {
-        flex-direction: column;
-    }
-
-    .preview-panel {
-        width: auto;
-        min-width: 0;
-        border-left-width: 0;
-        border-top-width: 0.05em;
-        border-top-color: var(--border-color);
     }
 
     .inspector-scroll {

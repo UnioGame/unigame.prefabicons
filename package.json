@@ -1,9 +1,9 @@
 {
   "name": "com.unigame.prefabicons",
-  "version": "2026.0.0",
+  "version": "2026.0.1",
   "displayName": "Prefab Icon Renderer",
   "description": "Tool for rendering prefab icons with UI Toolkit interface and API for code usage",
-  "unity": "2021.2",
+  "unity": "2023.2",
   "author": {
     "name": "UniGame"
   },

@@ -2,6 +2,8 @@
 
 A tool for generating icons from 3D Unity prefabs with support for backgrounds, frames, and full render parameter customization.
 
+![Prefab Icon Renderer preview](https://i.ibb.co/bjSqRHbP/icon-render-preview.png)
+
 ## Features
 
 - **Prefab folder sources** - Select one or more asset folders and discover prefabs automatically

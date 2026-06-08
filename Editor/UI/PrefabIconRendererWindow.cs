@@ -92,18 +92,34 @@ namespace PrefabIconRenderer
             if (styleSheet != null)
                 rootVisualElement.styleSheets.Add(styleSheet);
 
+            rootVisualElement.AddToClassList("window-root");
+            rootVisualElement.style.flexGrow = 1;
+
             var mainLayout = new VisualElement();
             mainLayout.AddToClassList("main-layout");
+            mainLayout.style.flexDirection = FlexDirection.Row;
+            mainLayout.style.flexGrow = 1;
 
             var inspectorScroll = new ScrollView();
             inspectorScroll.AddToClassList("inspector-scroll");
+            inspectorScroll.style.flexGrow = 0;
+            inspectorScroll.style.flexShrink = 1;
+            inspectorScroll.style.minWidth = 320;
+            inspectorScroll.style.width = 520;
 
             var previewPanel = new VisualElement();
             previewPanel.AddToClassList("preview-panel");
+            previewPanel.style.flexGrow = 1;
+            previewPanel.style.flexShrink = 1;
+            previewPanel.style.minWidth = 280;
 
             var titleLabel = new Label(WindowTitle);
             titleLabel.AddToClassList("title");
             inspectorScroll.Add(titleLabel);
+
+            var inspectorTitle = new Label("Inspector");
+            inspectorTitle.AddToClassList("panel-title");
+            inspectorScroll.Add(inspectorTitle);
 
             var sourcesGroup = CreatePrefabSourcesGroup();
             inspectorScroll.Add(sourcesGroup);
@@ -258,6 +274,10 @@ namespace PrefabIconRenderer
             var batchRenderButton = new Button(OnBatchRenderClicked) { text = "Render All Found Prefabs" };
             batchRenderButton.AddToClassList("render-button");
             buttonContainer.Add(batchRenderButton);
+
+            var previewTitle = new Label("Preview");
+            previewTitle.AddToClassList("panel-title");
+            previewPanel.Add(previewTitle);
 
             previewImage = new Image();
             previewImage.AddToClassList("preview-image");
