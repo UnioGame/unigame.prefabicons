@@ -14,6 +14,33 @@ A tool for generating icons from 3D Unity prefabs with support for backgrounds, 
 - **Full customization** - Backgrounds, frames, tints, and transformations
 - **Public API** - Use from EditorWindow or directly from code
 
+## Installation
+
+Install the package through Unity Package Manager from the GitHub repository:
+
+```text
+https://github.com/UnioGame/unigame.prefabicons.git
+```
+
+1. Open **Window → Package Manager** in Unity.
+2. Click **+** and choose **Add package from git URL...**.
+3. Paste the Git URL above.
+4. Click **Add**.
+
+You can also add the package manually to `Packages/manifest.json`:
+
+```json
+{
+  "dependencies": {
+    "com.unigame.prefabicons": "https://github.com/UnioGame/unigame.prefabicons.git"
+  }
+}
+```
+
+If your manifest already contains other dependencies, add only the `"com.unigame.prefabicons"` line inside the existing `"dependencies"` object.
+
+Repository: [UnioGame/unigame.prefabicons](https://github.com/UnioGame/unigame.prefabicons)
+
 ## Usage Through UI
 
 1. Open window: **UniGame/Tools → Render Prefab Icon**
