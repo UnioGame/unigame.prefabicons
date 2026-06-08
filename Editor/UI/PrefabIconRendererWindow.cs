@@ -24,6 +24,7 @@ namespace PrefabIconRenderer
 
         private readonly List<string> sourceFolders = new();
         private readonly List<PrefabEntry> foundPrefabs = new();
+        private readonly List<string> prefabPopupChoices = new();
 
         private ObjectField prefabField;
         private IntegerField resolutionField;
@@ -91,18 +92,24 @@ namespace PrefabIconRenderer
             if (styleSheet != null)
                 rootVisualElement.styleSheets.Add(styleSheet);
 
-            var scrollView = new ScrollView();
-            scrollView.AddToClassList("scroll-view");
+            var mainLayout = new VisualElement();
+            mainLayout.AddToClassList("main-layout");
+
+            var inspectorScroll = new ScrollView();
+            inspectorScroll.AddToClassList("inspector-scroll");
+
+            var previewPanel = new VisualElement();
+            previewPanel.AddToClassList("preview-panel");
 
             var titleLabel = new Label(WindowTitle);
             titleLabel.AddToClassList("title");
-            scrollView.Add(titleLabel);
+            inspectorScroll.Add(titleLabel);
 
             var sourcesGroup = CreatePrefabSourcesGroup();
-            scrollView.Add(sourcesGroup);
+            inspectorScroll.Add(sourcesGroup);
 
-            var mainGroup = CreateSettingsGroup("Main Settings");
-            scrollView.Add(mainGroup);
+            var mainGroup = CreateFoldoutGroup("Main Settings", true);
+            inspectorScroll.Add(mainGroup);
 
             prefabField = new ObjectField("Prefab");
             prefabField.objectType = typeof(GameObject);
@@ -148,8 +155,8 @@ namespace PrefabIconRenderer
             });
             mainGroup.Add(nameCollisionPolicyField);
 
-            var defaultGroup = CreateSettingsGroup("Default Settings");
-            scrollView.Add(defaultGroup);
+            var defaultGroup = CreateFoldoutGroup("Output", true);
+            inspectorScroll.Add(defaultGroup);
 
             defaultFileNameField = new TextField("Default Icon Name");
             defaultFileNameField.value = EditorPrefs.GetString(DefaultFileNameKey, "NewIcon");
@@ -175,8 +182,8 @@ namespace PrefabIconRenderer
             browseButton.AddToClassList("browse-button");
             defaultGroup.Add(browseButton);
 
-            var backgroundGroup = CreateSettingsGroup("Background");
-            scrollView.Add(backgroundGroup);
+            var backgroundGroup = CreateFoldoutGroup("Background", false);
+            inspectorScroll.Add(backgroundGroup);
 
             transparentBackgroundToggle = new Toggle("Transparent Background");
             transparentBackgroundToggle.value = settings.transparentBackground;
@@ -198,8 +205,8 @@ namespace PrefabIconRenderer
             });
             backgroundGroup.Add(backgroundColorField);
 
-            var transformGroup = CreateSettingsGroup("Transform");
-            scrollView.Add(transformGroup);
+            var transformGroup = CreateFoldoutGroup("Transform", true);
+            inspectorScroll.Add(transformGroup);
 
             rotationField = new Vector3Field("Rotation (Euler)");
             rotationField.value = settings.objectRotation;
@@ -239,7 +246,7 @@ namespace PrefabIconRenderer
             });
             transformGroup.Add(prefabOffsetField);
 
-            CreateAdvancedGroup(scrollView);
+            CreateAdvancedGroup(inspectorScroll);
 
             var buttonContainer = new VisualElement();
             buttonContainer.AddToClassList("button-container");
@@ -252,17 +259,18 @@ namespace PrefabIconRenderer
             batchRenderButton.AddToClassList("render-button");
             buttonContainer.Add(batchRenderButton);
 
-            scrollView.Add(buttonContainer);
-
             previewImage = new Image();
             previewImage.AddToClassList("preview-image");
-            scrollView.Add(previewImage);
+            previewPanel.Add(previewImage);
 
             statusLabel = new Label("Ready");
             statusLabel.AddToClassList("status-label");
-            scrollView.Add(statusLabel);
+            previewPanel.Add(statusLabel);
+            previewPanel.Add(buttonContainer);
 
-            rootVisualElement.Add(scrollView);
+            mainLayout.Add(inspectorScroll);
+            mainLayout.Add(previewPanel);
+            rootVisualElement.Add(mainLayout);
         }
 
         private VisualElement CreatePrefabSourcesGroup()
@@ -273,6 +281,7 @@ namespace PrefabIconRenderer
             group.Add(sourceFoldersContainer);
 
             var addRow = new VisualElement();
+            addRow.AddToClassList("inline-row");
             addRow.style.flexDirection = FlexDirection.Row;
 
             sourceFolderAddField = new ObjectField("Folder");
@@ -281,6 +290,7 @@ namespace PrefabIconRenderer
             addRow.Add(sourceFolderAddField);
 
             var addButton = new Button(AddSelectedSourceFolder) { text = "Add Folder" };
+            addButton.AddToClassList("compact-button");
             addRow.Add(addButton);
             group.Add(addRow);
 
@@ -288,6 +298,7 @@ namespace PrefabIconRenderer
             group.Add(prefabPopupContainer);
 
             var refreshButton = new Button(RefreshPrefabs) { text = "Refresh Prefabs" };
+            refreshButton.AddToClassList("compact-button");
             group.Add(refreshButton);
 
             prefabSourcesStatusLabel = new Label("No source folders selected");
@@ -310,6 +321,14 @@ namespace PrefabIconRenderer
             group.Add(titleLabel);
 
             return group;
+        }
+
+        private Foldout CreateFoldoutGroup(string title, bool expanded)
+        {
+            var foldout = new Foldout { text = title, value = expanded };
+            foldout.AddToClassList("settings-group");
+            foldout.AddToClassList("compact-foldout");
+            return foldout;
         }
 
         private VisualElement CreateAdvancedGroup(ScrollView parentScroll)
@@ -458,6 +477,7 @@ namespace PrefabIconRenderer
             {
                 var index = i;
                 var row = new VisualElement();
+                row.AddToClassList("inline-row");
                 row.style.flexDirection = FlexDirection.Row;
 
                 var folderField = new ObjectField("Source Folder");
@@ -495,6 +515,7 @@ namespace PrefabIconRenderer
                 {
                     text = "Remove"
                 };
+                removeButton.AddToClassList("compact-button");
                 row.Add(removeButton);
 
                 sourceFoldersContainer.Add(row);
@@ -548,15 +569,17 @@ namespace PrefabIconRenderer
 
             prefabPopupContainer.Clear();
 
+            RebuildPrefabPopupChoices();
+
             var choices = foundPrefabs.Count == 0
                 ? new List<string> { NoPrefabsFoundLabel }
-                : foundPrefabs.Select(x => x.DisplayName).ToList();
+                : prefabPopupChoices;
 
             prefabPopupField = new PopupField<string>("Prefab From Sources", choices, 0);
             prefabPopupField.SetEnabled(foundPrefabs.Count > 0);
             prefabPopupField.RegisterValueChangedCallback(evt =>
             {
-                var index = choices.IndexOf(evt.newValue);
+                var index = prefabPopupChoices.IndexOf(evt.newValue);
                 if (index < 0 || index >= foundPrefabs.Count)
                     return;
 
@@ -576,7 +599,53 @@ namespace PrefabIconRenderer
             if (index < 0)
                 return;
 
-            prefabPopupField.SetValueWithoutNotify(foundPrefabs[index].DisplayName);
+            prefabPopupField.SetValueWithoutNotify(prefabPopupChoices[index]);
+        }
+
+        private void RebuildPrefabPopupChoices()
+        {
+            prefabPopupChoices.Clear();
+
+            var nameCounts = foundPrefabs
+                .GroupBy(x => x.Prefab.name)
+                .ToDictionary(x => x.Key, x => x.Count());
+
+            var usedLabels = new HashSet<string>();
+            for (var i = 0; i < foundPrefabs.Count; i++)
+            {
+                var entry = foundPrefabs[i];
+                var label = entry.Prefab.name;
+
+                if (nameCounts[entry.Prefab.name] > 1)
+                    label = $"{entry.Prefab.name} ({GetParentFolderName(entry.Path)})";
+
+                if (!usedLabels.Add(label))
+                {
+                    var baseLabel = label;
+                    var suffix = 2;
+                    while (!usedLabels.Add(label))
+                    {
+                        label = $"{baseLabel} {suffix}";
+                        suffix++;
+                    }
+                }
+
+                prefabPopupChoices.Add(label);
+            }
+        }
+
+        private static string GetParentFolderName(string assetPath)
+        {
+            assetPath = NormalizePath(assetPath);
+            var lastSlash = assetPath.LastIndexOf('/');
+            if (lastSlash <= 0)
+                return "Project";
+
+            var folderPath = assetPath.Substring(0, lastSlash);
+            var parentSlash = folderPath.LastIndexOf('/');
+            return parentSlash < 0
+                ? folderPath
+                : folderPath.Substring(parentSlash + 1);
         }
 
         private void SetSelectedPrefab(GameObject prefab)
@@ -841,12 +910,10 @@ namespace PrefabIconRenderer
             {
                 Prefab = prefab;
                 Path = path;
-                DisplayName = $"{prefab.name} ({path})";
             }
 
             public GameObject Prefab { get; }
             public string Path { get; }
-            public string DisplayName { get; }
         }
     }
 }

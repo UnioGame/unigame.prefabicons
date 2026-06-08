@@ -37,10 +37,26 @@
     --transition-normal: 0.25s;
 }
 
-/* Main Scroll View */
-.scroll-view {
-    padding: var(--spacing-lg);
+/* Main Layout */
+.main-layout {
+    flex-direction: row;
+    flex-grow: 1;
     background-color: var(--background-color);
+}
+
+.inspector-scroll {
+    flex-grow: 1;
+    min-width: 24em;
+    padding: var(--spacing-md);
+}
+
+.preview-panel {
+    width: 18em;
+    min-width: 16em;
+    padding: var(--spacing-md);
+    background-color: var(--dark-background);
+    border-left-width: 0.05em;
+    border-left-color: var(--border-color);
 }
 
 /* Title */
@@ -48,8 +64,8 @@
     font-size: var(--font-size-title);
     font-weight: bold;
     color: var(--text-color);
-    margin-bottom: var(--spacing-lg);
-    padding-bottom: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-sm);
     border-bottom-width: 0.05em;
     border-bottom-color: var(--border-color);
 }
@@ -58,18 +74,22 @@
 .settings-group {
     background-color: var(--dark-background);
     border-radius: var(--border-radius);
-    padding: var(--spacing-md);
-    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
     border-width: 0.05em;
     border-color: var(--border-color);
+}
+
+.compact-foldout {
+    padding-top: var(--spacing-xs);
 }
 
 .group-title {
     font-size: 0.95em;
     font-weight: bold;
     color: var(--accent-color);
-    margin-bottom: var(--spacing-md);
-    padding-bottom: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+    padding-bottom: var(--spacing-xs);
     border-bottom-width: 0.05em;
     border-bottom-color: var(--accent-color);
 }
@@ -78,8 +98,8 @@
 .advanced-group {
     background-color: var(--dark-background);
     border-radius: var(--border-radius);
-    padding: var(--spacing-md);
-    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
     border-width: 0.05em;
     border-color: var(--border-color);
 }
@@ -92,9 +112,15 @@
     font-size: 0.9em;
     font-weight: bold;
     color: var(--text-color);
-    margin-top: var(--spacing-lg);
+    margin-top: var(--spacing-md);
     margin-bottom: var(--spacing-sm);
     opacity: 0.8;
+}
+
+.inline-row {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: var(--spacing-xs);
 }
 
 /* Input Fields */
@@ -106,7 +132,7 @@ Vector2Field,
 Vector3Field,
 ColorField,
 Toggle {
-    margin-bottom: var(--spacing-sm);
+    margin-bottom: var(--spacing-xs);
     --unity-label-width: 45%;
 }
 
@@ -135,25 +161,32 @@ ColorField > .unity-base-field__input {
 
 /* Button Container */
 .button-container {
-    padding: var(--spacing-lg) 0;
-    flex-direction: row;
-    justify-content: space-around;
+    padding: var(--spacing-md) 0 0 0;
+    flex-direction: column;
 }
 
 /* Render Button */
 .render-button {
-    padding: var(--spacing-md) var(--spacing-xl);
+    padding: var(--spacing-sm) var(--spacing-md);
     background-color: var(--accent-color);
     color: white;
     border-radius: var(--border-radius);
-    font-size: 1em;
+    font-size: 0.95em;
     font-weight: bold;
     border-width: 0;
     cursor: link;
     transition-property: background-color;
     transition-duration: var(--transition-normal);
-    min-height: var(--button-height);
-    min-width: 50%;
+    min-height: 2.2em;
+    width: 100%;
+    margin-bottom: var(--spacing-sm);
+}
+
+.compact-button {
+    min-height: 1.8em;
+    margin-left: var(--spacing-sm);
+    padding-left: var(--spacing-sm);
+    padding-right: var(--spacing-sm);
 }
 
 .render-button:hover {
@@ -169,12 +202,11 @@ ColorField > .unity-base-field__input {
 /* Preview Image */
 .preview-image {
     width: 100%;
-    height: var(--preview-size);
-    background-color: var(--dark-background);
+    height: 16em;
+    background-color: var(--background-color);
     border-radius: var(--border-radius);
     border-width: 0.05em;
     border-color: var(--border-color);
-    margin-top: var(--spacing-lg);
     margin-bottom: var(--spacing-md);
 }
 
@@ -211,6 +243,22 @@ ColorField > .unity-base-field__input {
 
     .button-container {
         flex-direction: column;
+    }
+
+    .main-layout {
+        flex-direction: column;
+    }
+
+    .preview-panel {
+        width: auto;
+        min-width: 0;
+        border-left-width: 0;
+        border-top-width: 0.05em;
+        border-top-color: var(--border-color);
+    }
+
+    .inspector-scroll {
+        min-width: 0;
     }
 
     .render-button {
